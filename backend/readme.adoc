@@ -1,0 +1,59 @@
+= 🎸 Serveur Principal Python (Django) - Synchrotron SOLEIL
+:toc: macro
+:toc-title: Sommaire
+:sectnums:
+
+toc::[]
+
+link:../README.adoc[⬅️ Retour à la racine du projet]
+
+== 📖 Objectif du module
+Ce dossier contient le serveur back-end principal du portail de réservation Synchrotron SOLEIL, développé avec le framework Python **Django** et **Django REST Framework (DRF)**.
+
+**Ses responsabilités principales :**
+* 🗄️ **Base de données** : Gestion relationnelle via PostgreSQL pour centraliser les profils utilisateurs, les experts et le planning des créneaux.
+* 🔒 **Sécurité, Authentification & RGPD** : Gestion des sessions sécurisées par JWT via `dj-rest-auth` (avec stockage en cookie HttpOnly), authentification OAuth2 (Google, GitHub, LinkedIn), et gestion sécurisée des profils incluant le droit à l'oubli (suppression définitive du compte).
+* 📧 **Notifications SMTP** : Déclenchement et envoi automatisé d'e-mails transactionnels (Création de compte, Confirmation de réservation, Annulation, Réinitialisation de mot de passe).
+* 🧠 **Moteur NLP (IA)** : Intégration de l'API Google Gemini 2.5 Flash pour analyser les requêtes en langage naturel et structurer les critères de filtrage.
+* 🛡️ **Logique Métier & Isolation** : Algorithmes garantissant qu'un créneau est verrouillé dès sa réservation, libéré à l'annulation, et qu'un chercheur n'accède qu'à ses propres données.
+
+== 🏗️ Architecture et Fichiers Clés
+Voici le détail des fichiers que nous avons créés et configurés pour construire cette architecture orientée API REST :
+
+* `core/settings.py` : Cœur de la configuration. Contient la connexion à PostgreSQL, les variables SMTP, l'intégration des middlewares CORS, et la configuration sur-mesure de `dj-rest-auth` (ex: `USER_DETAILS_SERIALIZER`) pour forcer l'identification par e-mail.
+* `core/urls.py` : Point d'entrée du routage Django. Expose les endpoints de l'API métier (`/api/`) et intègre les routes d'authentification classiques et OAuth.
+* `core/auth_views.py` : Connecteurs configurant les adaptateurs OAuth (Google, GitHub, LinkedIn) avec leurs URLs de redirection dynamiques pointant vers le front-end React.
+* `booking/models.py` : Définition de la structure de la base de données. Contient un modèle `User` personnalisé (sans champ username), et les modèles `Expert`, `TimeSlot` et `Appointment`.
+* `booking/serializers.py` : Couche de transformation JSON. Outre les sérialiseurs classiques des modèles, il intègre `CustomRegisterSerializer`, `CustomPasswordResetSerializer` (pour forcer l'envoi d'un e-mail direct vers le Front) et un `UserSerializer` strict empêchant l'usurpation d'e-mail lors de la mise à jour du profil.
+* `booking/views.py` : Contrôleurs de l'API (ViewSets). Appliquent les filtres automatiques pour masquer les créneaux passés ou réservés, gèrent l'isolation multi-tenant (`get_queryset`), et déclenchent l'envoi direct d'e-mails transactionnels. Inclut les APIViews personnalisées `BookingAssistantView` (IA) et `DeleteAccountView` (RGPD).
+* `booking/signals.py` : Écouteurs d'événements asynchrones. Ils détectent la création d'un compte ou la modification d'un mot de passe pour expédier instantanément les e-mails de bienvenue et d'alerte.
+* `booking/ai_service.py` : Interface avec le modèle Google Gemini 2.5 Flash. Analyse les requêtes en langage naturel et renvoie un dictionnaire structuré exploitable par les contrôleurs.
+* `booking/tests.py` : Suite exhaustive de tests automatisés avec Pytest validant la sécurité de l'API : respect de l'isolation des données, verrouillage des créneaux, vérification de la sécurité de mise à jour du profil (blocage d'e-mail) et conformité RGPD.
+* `pytest.ini` : Fichier de configuration minimal permettant à Pytest de s'amorcer avec les paramètres environnementaux de Django.
+
+== 🚀 Lancement et Arrêt du serveur
+
+L'environnement étant intégralement conteneurisé, toutes les opérations de cycle de vie s'effectuent via Docker depuis la racine du projet.
+
+=== Lancement de l'environnement complet
+Placez-vous à la racine du projet (au niveau du fichier `docker-compose.yml`) et exécutez la commande de construction et de démarrage :
+[source,bash]
+----
+docker compose up --build
+----
+Le backend Django s'initialisera, appliquera ses migrations de base de données, et sera accessible sur **http://localhost:8000/**.
+
+=== Exécution des tests automatisés (Pytest)
+Pour valider l'intégrité de la logique métier et de la sécurité, exécutez la suite de tests à l'intérieur du conteneur backend actif :
+[source,bash]
+----
+docker compose exec backend pytest -v
+----
+
+=== Arrêt du serveur
+Pour stopper proprement le serveur backend et libérer les ports de la machine hôte, utilisez la commande suivante depuis la racine du projet :
+[source,bash]
+----
+docker compose down
+----
+_Note : Si vous souhaitez également effacer la base de données PostgreSQL pour purger toutes les réservations et les utilisateurs, ajoutez l'argument `-v` (`docker compose down -v`)._

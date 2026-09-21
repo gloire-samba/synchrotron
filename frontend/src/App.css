@@ -1,0 +1,29 @@
+/* === FICHIER : frontend/src/App.css === */
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+main {
+  width: 100%;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+input {
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+  font-size: 1em;
+}
+
+ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+li {
+  margin-bottom: 10px;
+}

@@ -1,0 +1,61 @@
+= ⚛️ Interface Web (Front-end React) - Synchrotron SOLEIL
+:toc: macro
+:toc-title: Sommaire
+:sectnums:
+
+toc::[]
+
+link:../README.adoc[⬅️ Retour à la racine du projet]
+
+== 📖 Objectif du module[cite: 9]
+Ce dossier contient l'interface graphique du portail de réservation Synchrotron SOLEIL, développée avec le framework **React** (avec Vite et TypeScript)[cite: 9]. 
+Cette interface est la vitrine de l'application. Elle permet aux chercheurs de consulter les disponibilités des lignes de lumière et des experts, de s'authentifier de manière fluide, et de gérer leurs rendez-vous[cite: 9].
+
+**Fonctionnalités principales :**
+* 🔐 **Authentification Hybride** : Connexion classique (Email/Mot de passe avec confirmation SMTP) et OAuth 2.0 (Google, GitHub, LinkedIn)[cite: 9].
+* 👤 **Gestion de Profil & RGPD** : Espace dédié permettant la mise à jour des informations personnelles, le changement de mot de passe interactif (avec œil de masquage), et la suppression définitive du compte (droit à l'oubli).
+* 🤖 **Assistant IA Intégré** : Barre de recherche en langage naturel couplée à Google Gemini 2.5 Flash pour filtrer automatiquement les experts selon la demande de l'utilisateur[cite: 9].
+* 📅 **Tunnel de Réservation** : Consultation des créneaux disponibles, filtres par spécialité/chercheur, et gestion des réservations (annulation avec notification e-mail)[cite: 9].
+* 🛡️ **Sécurité Moderne** : Gestion des sessions sans stockage local vulnérable (LocalStorage), reposant entièrement sur des cookies `HttpOnly` gérés par le back-end[cite: 9].
+
+== 🏗️ Architecture et Fichiers Clés[cite: 9]
+Le projet respecte les standards modernes de l'écosystème React (Hooks, composants fonctionnels, Vite, TypeScript)[cite: 9] :
+
+* `src/main.tsx` & `src/App.tsx` : Point d'entrée de l'application et configuration du routage dynamique avec `react-router-dom`. Gère la protection des routes et la navigation conditionnelle (ex: affichage du bouton "Mon Profil")[cite: 9].
+* `src/services/api.ts` : Cœur des communications réseau. Contient toutes les requêtes asynchrones (`fetchAuth`, `loginSocial`, `searchWithAI`, `updateProfile`, `changePassword`, `deleteAccount`) et gère automatiquement l'inclusion des identifiants sécurisés[cite: 9].
+* `src/components/Auth.tsx` : Composant centralisant les formulaires de connexion, d'inscription et de mot de passe oublié[cite: 9].
+* `src/components/OAuthCallback.tsx` : Composant de transition interceptant les retours des fournisseurs OAuth[cite: 9].
+* `src/components/ResetPasswordConfirm.tsx` : Interface dédiée à la création d'un nouveau mot de passe via e-mail[cite: 9].
+* `src/components/Profile.tsx` : Interface de gestion du compte utilisateur (mise à jour des informations, modification de mot de passe, et zone de danger RGPD pour la suppression du compte).
+* `src/components/BookingTunnel.tsx` : Le tableau de bord principal. Intègre la navigation par onglets (Disponibilités / Mes réservations), la barre de recherche IA, et la logique de réservation/annulation[cite: 9].
+* `src/components/BookingTunnel.test.tsx` & `src/components/Profile.test.tsx` : Suites exhaustives de tests unitaires et d'intégration utilisant **Jest** et **React Testing Library** (simulation d'API, vérification des filtres, validation des formulaires et du rendu conditionnel)[cite: 9].
+* `src/index.css` & `src/App.css` : Feuilles de style globales garantissant une interface moderne, sombre (Dark Mode) et épurée[cite: 9].
+* `vite.config.ts` : Configuration du bundler Vite, optimisée pour le rechargement à chaud (Hot-Reload) sous Docker[cite: 9].
+* `jest.config.cjs` & `src/setupTests.ts` : Configuration du moteur de test Jest pour interpréter correctement TypeScript, le JSX (React), le DOM simulé (`jsdom`), et injecter les APIs modernes de type `TextEncoder`[cite: 9].
+* 🐳 `Dockerfile` : Script de conteneurisation basé sur une image `node:22-alpine`, optimisé pour exploiter le cache NPM[cite: 9].
+
+== 🚀 Lancement et Arrêt de l'Application[cite: 9]
+
+L'environnement de développement est intégralement conteneurisé. Toutes les commandes doivent être exécutées depuis la racine du projet (au niveau du fichier `docker-compose.yml`)[cite: 9].
+
+=== Lancement de l'interface[cite: 9]
+Pour démarrer le front-end (ainsi que le reste de l'infrastructure), exécutez la commande suivante à la racine :
+[source,bash]
+----
+docker compose up --build
+----
+Une fois la compilation terminée, l'interface est accessible sur **http://localhost:5173**[cite: 9]. Toute modification dans le code source sera répercutée instantanément grâce au Hot-Reload[cite: 9].
+
+=== Exécution des tests automatisés (Jest)[cite: 9]
+Pour valider l'intégrité de l'interface (composants, logique de filtrage, validation du profil, etc.), lancez la suite de tests directement dans le conteneur front-end :
+[source,bash]
+----
+docker compose exec frontend npx jest
+----
+
+=== Arrêt de l'interface[cite: 9]
+Pour stopper proprement le serveur Vite de développement, utilisez la commande suivante depuis la racine du projet :
+[source,bash]
+----
+docker compose down
+----

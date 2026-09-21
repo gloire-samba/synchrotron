@@ -1,0 +1,19 @@
+# === FICHIER : backend/requirements.txt ===
+Django==6.1.1
+djangorestframework==3.18.1
+psycopg2-binary==2.9.13
+python-dotenv==1.2.3
+pytest-django==4.14.0
+google-generativeai==0.8.6
+django-cors-headers==4.6.0
+djangorestframework-simplejwt==5.5.1
+dj-rest-auth==7.2.0
+django-allauth==65.19.4
+
+# Explications :
+# Ces paquets constituent le socle de notre API. 
+# psycopg2-binary est le pilote pour dialoguer avec PostgreSQL.
+# pytest-django servira pour nos tests métiers stricts.
+# google-generativeai est le SDK officiel pour l'API Gemini 2.5 Flash.
+# djangorestframework-simplejwt gère la création et la vérification des tokens d'accès.
+# dj-rest-auth et django-allauth nous fourniront des endpoints tout prêts pour l'inscription, la connexion email/password, et surtout les futurs connecteurs sociaux (OAuth).
