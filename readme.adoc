@@ -7,35 +7,38 @@ toc::[]
 
 == 📖 Présentation du Projet
 
-Bienvenue sur le prototype (Proof of Concept) du portail de réservation pour le **Synchrotron SOLEIL**. 
-Ce projet a été développé intégralement de zéro suite à notre récent échange, afin de démontrer techniquement la faisabilité des besoins exprimés pour ce poste.
+Bienvenue sur le prototype (Proof of Concept) du portail de réservation pour le **Synchrotron SOLEIL**[cite: 7]. 
+Ce projet a été développé intégralement de zéro suite à notre récent échange, afin de démontrer techniquement la faisabilité des besoins exprimés pour ce poste[cite: 7].
 
-Il s'agit d'une plateforme complète permettant aux chercheurs de consulter les disponibilités des experts et des lignes de lumière, et de gérer leurs réservations.
+Il s'agit d'une plateforme complète permettant aux chercheurs de consulter les disponibilités des experts et des lignes de lumière, et de gérer leurs réservations[cite: 7].
 
 **Fonctionnalités clés implémentées :**
-* 🧠 **Assistant IA (Gemini 2.5 Flash)** : Un moteur de recherche en langage naturel permettant de filtrer dynamiquement les experts (ex: *"Je cherche un spécialiste en cristallographie"*).
-* 🔐 **Authentification Hybride & Sécurisée** : Connexion classique par e-mail avec validation SMTP, et OAuth 2.0 (Google, GitHub, LinkedIn). Sessions gérées via des cookies `HttpOnly`.
-* 👤 **Gestion de Profil & Conformité RGPD** : Espace utilisateur interactif pour la mise à jour des informations personnelles, le changement sécurisé de mot de passe, et l'exercice du droit à l'oubli (suppression définitive et automatisée du compte).
-* 📧 **Notifications Automatiques** : Envoi d'e-mails transactionnels pour la création de compte, la confirmation, l'annulation de réservation et la réinitialisation de mot de passe.
-* 🧪 **Fiabilité** : Logique métier couverte par des tests automatisés (Jest pour le front-end, Pytest pour le back-end).
+* 🧠 **Assistant IA (Gemini 2.5 Flash)** : Un moteur de recherche en langage naturel permettant de filtrer dynamiquement les experts (ex: *"Je cherche un spécialiste en cristallographie"*)[cite: 7].
+* 🔐 **Authentification Hybride & Sécurisée** : Connexion classique par e-mail avec validation SMTP, et OAuth 2.0 (Google, GitHub, LinkedIn)[cite: 7]. Sessions gérées via des cookies `HttpOnly`[cite: 7].
+* 👤 **Gestion de Profil & Conformité RGPD** : Espace utilisateur interactif pour la mise à jour des informations personnelles, le changement sécurisé de mot de passe, et l'exercice du droit à l'oubli (suppression définitive et automatisée du compte)[cite: 7].
+* 📧 **Notifications Automatiques** : Envoi d'e-mails transactionnels pour la création de compte, la confirmation, l'annulation de réservation et la réinitialisation de mot de passe[cite: 7].
+* 🧪 **Fiabilité** : Logique métier couverte par des tests automatisés (Jest pour le front-end, Pytest pour le back-end)[cite: 7].
 
 == 🏗️ Architecture et Composants
 
-L'application repose sur une architecture moderne, modulaire et entièrement conteneurisée avec Docker :
+L'application repose sur une architecture moderne, modulaire et entièrement conteneurisée avec Docker[cite: 7] :
 
-* 🎸 link:./backend/README.adoc[**backend (Django)**] : Le serveur API REST principal (Port 8000). Gère la base de données PostgreSQL, la logique de réservation, l'envoi d'e-mails et le pont avec l'IA Google Gemini.
-* ⚛️ link:./frontend/README.adoc[**frontend (React)**] : L'interface utilisateur interactive et réactive développée avec Vite et TypeScript (Port 5173).
-* 🐳 **docker-compose.yml** : L'orchestrateur central qui connecte le front-end, le back-end et la base de données PostgreSQL dans un réseau virtuel isolé.
+* 🎸 link:./backend/README.adoc[**backend (Django)**] : Le serveur API REST principal (Port 8000)[cite: 7]. Gère la base de données PostgreSQL, la logique de réservation, l'envoi d'e-mails et le pont avec l'IA Google Gemini[cite: 7].
+* ⚛️ link:./frontend/README.adoc[**frontend (React)**] : L'interface utilisateur interactive et réactive développée avec Vite et TypeScript (Port 5173)[cite: 7].
+* 🐳 **docker-compose.yml** : L'orchestrateur central qui connecte le front-end, le back-end et la base de données PostgreSQL dans un réseau virtuel isolé[cite: 7].
 
 == 🛠️ Prérequis
 
 Pour exécuter ce projet sur votre machine, vous avez uniquement besoin de :
-* **Docker** et **Docker Compose** installés.
-* Un fichier `.env` configuré à la racine du projet (voir section suivante).
+* **Docker** et **Docker Compose** installés[cite: 7].
+* Configurer **deux fichiers `.env`** (un à la racine, un dans le front-end) détaillés dans la section suivante.
 
 == ⚙️ Configuration des variables d'environnement (.env)
 
-Créez un fichier nommé `.env` à la racine absolue du projet (au même niveau que le `docker-compose.yml`) et remplissez-le en vous basant sur ce modèle :
+Pour faire fonctionner l'ensemble de l'architecture, vous devez créer deux fichiers distincts.
+
+=== 1. Le fichier `.env` à la racine (Back-end & Base de données)
+Créez un fichier nommé `.env` à la racine absolue du projet (au même niveau que le `docker-compose.yml`) :
 
 [source,properties]
 ----
@@ -53,10 +56,6 @@ POSTGRES_PORT=5432
 # --- URL FRONTEND ---
 FRONTEND_URL=http://localhost:5173
 
-# --- AUTHENTIFICATION OAUTH 2.0 ---
-VITE_GOOGLE_CLIENT_ID=votre_client_id_google
-VITE_GITHUB_CLIENT_ID=votre_client_id_github
-
 # --- GOOGLE GEMINI IA ---
 GEMINI_API_KEY=votre_cle_api_google_ai_studio
 
@@ -65,65 +64,75 @@ EMAIL_HOST_USER=votre_email@gmail.com
 EMAIL_HOST_PASSWORD=votre_mot_de_passe_application_de_16_lettres
 ----
 
+=== 2. Le fichier `.env` dans le dossier Front-end (React)
+Créez un second fichier nommé `.env` directement **à l'intérieur du dossier `frontend/`** :
+
+[source,properties]
+----
+# --- AUTHENTIFICATION OAUTH 2.0 (Interface) ---
+VITE_GOOGLE_CLIENT_ID=votre_client_id_google
+VITE_GITHUB_CLIENT_ID=votre_client_id_github
+----
+
 == 🔑 Tutoriel : Obtenir vos Clés et Configurer les Services externes
 
 === 1. Obtenir la clé Google Gemini (Pour l'Assistant IA)
-1. Allez sur https://aistudio.google.com/[Google AI Studio].
-2. Connectez-vous avec un compte Google.
-3. Cliquez sur **"Get API key"** à gauche, puis sur le bouton bleu **"Create API key"**.
-4. Copiez cette clé et collez-la dans la variable `GEMINI_API_KEY` de votre fichier `.env`.
+1. Allez sur https://aistudio.google.com/[Google AI Studio][cite: 7].
+2. Connectez-vous avec un compte Google[cite: 7].
+3. Cliquez sur **"Get API key"** à gauche, puis sur le bouton bleu **"Create API key"**[cite: 7].
+4. Copiez cette clé et collez-la dans la variable `GEMINI_API_KEY` de votre fichier `.env` à la racine[cite: 7].
 
 === 2. Configurer la connexion avec GitHub et Google (OAuth 2.0)
 
 ==== 🌐 Google Cloud Console
-1. Allez sur la link:https://console.cloud.google.com/[Google Cloud Console].
-2. Créez un nouveau projet.
-3. Accédez à **API et services > Identifiants**.
-4. Cliquez sur **Créer des identifiants > ID de client OAuth**.
-5. Configurez l'écran de consentement en mode **"Externe"**.
-6. **Origines JavaScript autorisées :** Ajoutez `http://localhost:5173`
-7. **URI de redirection autorisés :** Ajoutez `http://localhost:5173/auth/google/callback`
-8. Notez votre **Client ID** et copiez-le dans la variable `VITE_GOOGLE_CLIENT_ID` de votre `.env`.
+1. Allez sur la link:https://console.cloud.google.com/[Google Cloud Console][cite: 7].
+2. Créez un nouveau projet[cite: 7].
+3. Accédez à **API et services > Identifiants**[cite: 7].
+4. Cliquez sur **Créer des identifiants > ID de client OAuth**[cite: 7].
+5. Configurez l'écran de consentement en mode **"Externe"**[cite: 7].
+6. **Origines JavaScript autorisées :** Ajoutez `http://localhost:5173`[cite: 7]
+7. **URI de redirection autorisés :** Ajoutez `http://localhost:5173/auth/google/callback`[cite: 7]
+8. Notez votre **Client ID** et copiez-le dans la variable `VITE_GOOGLE_CLIENT_ID` de votre fichier `frontend/.env`.
 
 ==== 🐙 GitHub Developer Settings
-1. Allez dans vos **Settings** GitHub > **Developer Settings** > **OAuth Apps**.
-2. Cliquez sur **New OAuth App**.
-3. **Homepage URL :** `http://localhost:5173`
-4. **Authorization callback URL :** `http://localhost:5173/auth/github/callback`
-5. Cliquez sur **Register application**.
-6. Copiez le **Client ID** généré et mettez-le dans la variable `VITE_GITHUB_CLIENT_ID` de votre `.env`.
+1. Allez dans vos **Settings** GitHub > **Developer Settings** > **OAuth Apps**[cite: 7].
+2. Cliquez sur **New OAuth App**[cite: 7].
+3. **Homepage URL :** `http://localhost:5173`[cite: 7]
+4. **Authorization callback URL :** `http://localhost:5173/auth/github/callback`[cite: 7]
+5. Cliquez sur **Register application**[cite: 7].
+6. Copiez le **Client ID** généré et mettez-le dans la variable `VITE_GITHUB_CLIENT_ID` de votre fichier `frontend/.env`.
 
 === 3. Obtenir le mot de passe d'application Google (Pour l'envoi d'e-mails SMTP)
-Pour des raisons de sécurité, Google n'autorise plus la connexion avec votre mot de passe habituel pour les envois automatisés.
-1. Allez sur les https://myaccount.google.com/security[Paramètres de sécurité de votre compte Google].
-2. Activez la **Validation en deux étapes** si ce n'est pas déjà fait.
-3. Cherchez **"Mots de passe des applications"** dans la barre de recherche des paramètres.
-4. Générez un mot de passe (donnez-lui le nom "Synchrotron").
-5. Google va afficher un code de 16 lettres. **Copiez-le sans les espaces** et collez-le dans votre variable `EMAIL_HOST_PASSWORD`.
+Pour des raisons de sécurité, Google n'autorise plus la connexion avec votre mot de passe habituel pour les envois automatisés[cite: 7].
+1. Allez sur les https://myaccount.google.com/security[Paramètres de sécurité de votre compte Google][cite: 7].
+2. Activez la **Validation en deux étapes** si ce n'est pas déjà fait[cite: 7].
+3. Cherchez **"Mots de passe des applications"** dans la barre de recherche des paramètres[cite: 7].
+4. Générez un mot de passe (donnez-lui le nom "Synchrotron")[cite: 7].
+5. Google va afficher un code de 16 lettres[cite: 7]. **Copiez-le sans les espaces** et collez-le dans votre variable `EMAIL_HOST_PASSWORD` à la racine[cite: 7].
 
 == 🚀 Lancement Global de l'Application
 
-La manière la plus simple de lancer toute l'architecture d'un seul coup est d'utiliser Docker Compose.
+La manière la plus simple de lancer toute l'architecture d'un seul coup est d'utiliser Docker Compose[cite: 7].
 
-. Ouvrez un terminal à la racine du projet.
-. Tapez la commande suivante pour construire et lancer les conteneurs :
+. Ouvrez un terminal à la racine du projet[cite: 7].
+. Tapez la commande suivante pour construire et lancer les conteneurs[cite: 7] :
 +
 [source,bash]
 ----
 docker compose up --build
 ----
-. Patientez quelques secondes le temps que la base de données s'initialise et que les serveurs démarrent.
-. Le portail est prêt !
-* ⚛️ **Accédez à l'Interface Utilisateur (React) :** `http://localhost:5173`
-* 🎸 **Accédez à l'API (Django) :** `http://localhost:8000/api`
+. Patientez quelques secondes le temps que la base de données s'initialise et que les serveurs démarrent[cite: 7].
+. Le portail est prêt ![cite: 7]
+* ⚛️ **Accédez à l'Interface Utilisateur (React) :** `http://localhost:5173`[cite: 7]
+* 🎸 **Accédez à l'API (Django) :** `http://localhost:8000/api`[cite: 7]
 
 == 🛑 Comment arrêter le projet ?
 
-Pour stopper proprement tous les services et libérer les ports de votre machine, appuyez sur `Ctrl + C` dans le terminal qui exécute Docker, puis tapez :
+Pour stopper proprement tous les services et libérer les ports de votre machine, appuyez sur `Ctrl + C` dans le terminal qui exécute Docker, puis tapez[cite: 7] :
 
 [source,bash]
 ----
 docker compose down
 ----
 
-_Astuce : Si vous souhaitez réinitialiser entièrement la base de données (supprimer tous les utilisateurs et réservations test), ajoutez l'argument `-v` (`docker compose down -v`)._
+_Astuce : Si vous souhaitez réinitialiser entièrement la base de données (supprimer tous les utilisateurs et réservations test), ajoutez l'argument `-v` (`docker compose down -v`)[cite: 7]._
