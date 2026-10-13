@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { API_URL, fetchAuth, searchWithAI } from '../services/api';
 
-// Algorithme de Levenshtein pour calculer la distance entre deux mots (tolérance aux fautes)
+// Algorithme de Levenshtein pour tolérer les fautes de frappe sur le texte
 const getLevenshteinDistance = (a: string, b: string) => {
   const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
   for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
@@ -20,7 +20,6 @@ const getLevenshteinDistance = (a: string, b: string) => {
   return matrix[a.length][b.length];
 };
 
-// Fonction de recherche floue améliorée pour supporter plusieurs mots
 const fuzzyMatch = (text: string, search: string, maxDistance: number = 2) => {
   if (!search) return true;
   if (!text) return false;
@@ -33,7 +32,6 @@ const fuzzyMatch = (text: string, search: string, maxDistance: number = 2) => {
   const searchTerms = normalizedSearch.split(/\s+/);
   const textWords = normalizedText.split(/\s+/);
 
-  // Vérifie que chaque mot tapé correspond (exactement ou avec faute) à un mot du texte
   return searchTerms.every(searchTerm =>
     textWords.some(word =>
       word.includes(searchTerm) || getLevenshteinDistance(word, searchTerm) <= maxDistance
@@ -56,8 +54,11 @@ export const BookingTunnel = () => {
   // Champs de recherche textuelle (Floue)
   const [searchNom, setSearchNom] = useState('');
   const [searchDiscipline, setSearchDiscipline] = useState('');
+  
+  // NOUVEAU : Champs natifs HTML5 pour la date et l'heure
+  const [searchDate, setSearchDate] = useState('');
+  const [searchTime, setSearchTime] = useState('');
 
-  // Assistant IA
   const [iaQuery, setIaQuery] = useState('');
   const [isIaLoading, setIsIaLoading] = useState(false);
   const [iaMessage, setIaMessage] = useState('');
@@ -152,35 +153,57 @@ export const BookingTunnel = () => {
   const disciplinesDisponibles = Array.from(new Set(slots.map(s => s.expert?.specialty))).filter(Boolean);
   const chercheursDisponibles = Array.from(new Set(slots.map(s => getNomChercheur(s)))).filter(Boolean);
 
-  // Filtrage combiné (Menus déroulants + Recherche textuelle)
   const creneauxAffiches = useMemo(() => {
     const slotsFiltres = slots.filter(slot => {
       const nomChercheur = getNomChercheur(slot);
       const specialite = slot.expert?.specialty || "";
       
-      // Filtres stricts (Menus déroulants)
+      // Extraction de la date (YYYY-MM-DD) et de l'heure (HH:mm) du créneau
+      const slotObj = new Date(slot.start_time);
+      const slotDateIso = slotObj.toISOString().split('T')[0];
+      const slotTimeIso = slotObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+      // 1. Filtres stricts (Menus déroulants)
       if (filtreDiscipline && specialite !== filtreDiscipline) return false;
       if (filtreChercheur && nomChercheur !== filtreChercheur) return false;
 
-      // Filtres flous (Barres de recherche texte)
+      // 2. Filtres textuels flous
       if (searchNom && !fuzzyMatch(nomChercheur, searchNom)) return false;
       if (searchDiscipline && !fuzzyMatch(specialite, searchDiscipline)) return false;
+      
+      // 3. NOUVEAU : Filtres temporels stricts via calendriers natifs
+      if (searchDate && slotDateIso !== searchDate) return false;
+      if (searchTime && slotTimeIso !== searchTime) return false;
 
       return true;
     });
     
-    return slotsFiltres.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-  }, [slots, filtreDiscipline, filtreChercheur, searchNom, searchDiscipline]);
+    // Blocage absolu des doublons générés par le seed_data.py
+    const uniqueSlots: any[] = [];
+    const signaturesVues = new Set();
+
+    for (const slot of slotsFiltres) {
+      const signatureUnique = `${slot.expert?.id}-${slot.start_time}`;
+      if (!signaturesVues.has(signatureUnique)) {
+        signaturesVues.add(signatureUnique);
+        uniqueSlots.push(slot);
+      }
+    }
+
+    return uniqueSlots.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  }, [slots, filtreDiscipline, filtreChercheur, searchNom, searchDiscipline, searchDate, searchTime]);
 
   if (isLoading) return <div>Chargement de votre espace...</div>;
+
+  const inputStyle = { padding: '10px', flex: 1, minWidth: '130px', borderRadius: '4px', border: '1px solid #555', backgroundColor: '#444', color: '#fff' };
 
   return (
     <div style={{ marginTop: '20px' }}>
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #333', paddingBottom: '10px' }}>
-        <button onClick={() => setOngletActif('dispo')} style={{ padding: '10px 20px', backgroundColor: ongletActif === 'dispo' ? '#61dafb' : '#333', color: ongletActif === 'dispo' ? '#000' : '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
+        <button onClick={() => setOngletActif('dispo')} style={{ padding: '10px 20px', backgroundColor: ongletActif === 'dispo' ? '#61dafb' : '#333', color: ongletActif === 'dispo' ? '#000' : '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
           Nouvelle réservation
         </button>
-        <button onClick={() => setOngletActif('mes_resa')} style={{ padding: '10px 20px', backgroundColor: ongletActif === 'mes_resa' ? '#61dafb' : '#333', color: ongletActif === 'mes_resa' ? '#000' : '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
+        <button onClick={() => setOngletActif('mes_resa')} style={{ padding: '10px 20px', backgroundColor: ongletActif === 'mes_resa' ? '#61dafb' : '#333', color: ongletActif === 'mes_resa' ? '#000' : '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer' }}>
           Mes réservations ({mesReservations.length})
         </button>
       </div>
@@ -192,66 +215,57 @@ export const BookingTunnel = () => {
         <div>
           <h2>Réserver une ligne de lumière ou un expert</h2>
           
-          {/* BARRE DE RECHERCHE IA */}
           <form onSubmit={handleIaSearch} style={{ display: 'flex', gap: '10px', marginBottom: '15px', padding: '15px', backgroundColor: '#1a1a2e', borderRadius: '8px', border: '1px solid #4d4dff' }}>
             <span style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center' }}>✨</span>
-            <input type="text" placeholder="Recherche intelligente via l'IA Gemini..." value={iaQuery} onChange={(e) => setIaQuery(e.target.value)} style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#333', color: '#fff' }} />
+            <input type="text" placeholder="Recherche intelligente via l'IA Gemini..." value={iaQuery} onChange={(e) => setIaQuery(e.target.value)} style={{ ...inputStyle, backgroundColor: '#333' }} />
             <button type="submit" disabled={isIaLoading} style={{ padding: '10px 20px', backgroundColor: '#4d4dff', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: isIaLoading ? 'not-allowed' : 'pointer' }}>
               {isIaLoading ? 'Analyse...' : 'Demander à l\'IA'}
             </button>
           </form>
           {iaMessage && <p style={{ color: '#61dafb', margin: '0 0 20px 0', fontSize: '0.9em' }}>{iaMessage}</p>}
 
-          {/* ZONE DE FILTRAGE COMBINÉE */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '30px', padding: '15px', backgroundColor: '#2c2c2c', borderRadius: '8px' }}>
             
-            {/* Ligne 1 : Menus déroulants stricts */}
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <select value={filtreDiscipline} onChange={(e) => setFiltreDiscipline(e.target.value)} style={{ padding: '8px', flex: 1, borderRadius: '4px', backgroundColor: '#333', color: '#fff', border: '1px solid #555' }}>
+            {/* 1. Filtres stricts */}
+            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+              <select value={filtreDiscipline} onChange={(e) => setFiltreDiscipline(e.target.value)} style={inputStyle}>
                 <option value="">Toutes les disciplines (Filtre exact)</option>
                 {disciplinesDisponibles.map(disc => <option key={String(disc)} value={String(disc)}>{String(disc)}</option>)}
               </select>
-              <select value={filtreChercheur} onChange={(e) => setFiltreChercheur(e.target.value)} style={{ padding: '8px', flex: 1, borderRadius: '4px', backgroundColor: '#333', color: '#fff', border: '1px solid #555' }}>
+              <select value={filtreChercheur} onChange={(e) => setFiltreChercheur(e.target.value)} style={inputStyle}>
                 <option value="">Tous les experts (Filtre exact)</option>
                 {chercheursDisponibles.map(chercheur => <option key={chercheur} value={chercheur}>{chercheur}</option>)}
               </select>
             </div>
 
-            {/* Ligne 2 : Recherche libre (Floue) */}
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <input 
-                type="text" 
-                placeholder="Recherche libre par discipline (ex: phisique)..." 
-                value={searchDiscipline} 
-                onChange={(e) => setSearchDiscipline(e.target.value)} 
-                style={{ padding: '10px', flex: 1, borderRadius: '4px', border: '1px solid #555', backgroundColor: '#444', color: '#fff' }} 
-              />
-              <input 
-                type="text" 
-                placeholder="Recherche libre par expert (ex: dupont)..." 
-                value={searchNom} 
-                onChange={(e) => setSearchNom(e.target.value)} 
-                style={{ padding: '10px', flex: 1, borderRadius: '4px', border: '1px solid #555', backgroundColor: '#444', color: '#fff' }} 
-              />
+            {/* 2. Filtres temporels natifs HTML5 */}
+            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+              <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} style={inputStyle} title="Choisir une date précise" />
+              <input type="time" value={searchTime} onChange={(e) => setSearchTime(e.target.value)} style={inputStyle} title="Choisir une heure précise" />
+            </div>
+
+            {/* 3. Filtres textuels */}
+            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+              <input type="text" placeholder="Discipline (ex: physique)..." value={searchDiscipline} onChange={(e) => setSearchDiscipline(e.target.value)} style={inputStyle} />
+              <input type="text" placeholder="Nom (ex: dupont)..." value={searchNom} onChange={(e) => setSearchNom(e.target.value)} style={inputStyle} />
+              
               <button 
                 onClick={() => { 
-                  setFiltreDiscipline(''); 
-                  setFiltreChercheur(''); 
-                  setSearchDiscipline(''); 
-                  setSearchNom(''); 
-                  setIaQuery(''); 
-                  setIaMessage(''); 
+                  setFiltreDiscipline(''); setFiltreChercheur(''); 
+                  setSearchDiscipline(''); setSearchNom(''); 
+                  setSearchDate(''); setSearchTime('');
+                  setIaQuery(''); setIaMessage(''); 
                 }} 
                 style={{ backgroundColor: '#6c757d', color: 'white', padding: '8px 15px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
               >
-                Effacer tous les filtres
+                Effacer
               </button>
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
             {creneauxAffiches.length === 0 ? (
-              <p>Aucun créneau disponible pour cette recherche.</p>
+              <p>Aucun créneau ne correspond à tous ces critères simultanément.</p>
             ) : (
               creneauxAffiches.map(slot => (
                 <div key={slot.id} style={{ border: '1px solid #444', padding: '15px', borderRadius: '8px', backgroundColor: '#1e1e1e' }}>
@@ -261,7 +275,7 @@ export const BookingTunnel = () => {
                     <p style={{ margin: 0 }}><strong>{new Date(slot.start_time).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</strong></p>
                     <p style={{ margin: 0 }}>{new Date(slot.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} à {new Date(slot.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
-                  <button onClick={() => reserver(slot.id)} style={{ width: '100%', backgroundColor: '#007bff', color: 'white', padding: '10px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  <button onClick={() => reserver(slot.id)} style={{ width: '100%', backgroundColor: '#007bff', color: 'white', padding: '10px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                     Réserver ce créneau
                   </button>
                 </div>
@@ -287,7 +301,7 @@ export const BookingTunnel = () => {
                      <p style={{ margin: '0 0 5px 0' }}><strong>Spécialité :</strong> {resa.time_slot_details?.expert?.specialty}</p>
                      <p style={{ margin: 0 }}><strong>Date :</strong> {new Date(resa.time_slot_details?.start_time).toLocaleDateString('fr-FR')} à {new Date(resa.time_slot_details?.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
-                  <button onClick={() => annulerReservation(resa.id)} style={{ width: '100%', backgroundColor: '#dc3545', color: 'white', padding: '10px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  <button onClick={() => annulerReservation(resa.id)} style={{ width: '100%', backgroundColor: '#dc3545', color: 'white', padding: '10px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                     Annuler la réservation
                   </button>
                 </div>

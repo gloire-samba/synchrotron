@@ -6,6 +6,8 @@ from django.contrib.auth import get_user_model
 from .models import Expert, TimeSlot, Appointment
 from django.utils import timezone
 from datetime import timedelta
+from unittest.mock import patch
+from booking.tasks import envoyer_rappels_rdv
 
 User = get_user_model()
 
@@ -169,3 +171,35 @@ class TestExpertDashboardSecurity:
         self.client.force_authenticate(user=self.user_normal)
         response = self.client.get('/api/expert-dashboard/')
         assert response.status_code == status.HTTP_403_FORBIDDEN
+        
+@pytest.mark.django_db
+class TestCeleryRappels:
+    
+    # On intercepte la fonction send_mail de Django pour qu'elle ne s'exécute pas pour de vrai
+    @patch('booking.tasks.send_mail')
+    def test_rappel_uniquement_demain(self, mock_send_mail):
+        """La tâche CRON ne doit envoyer d'e-mail qu'aux patients ayant rdv le lendemain."""
+        
+        # 1. Création des utilisateurs et de l'expert
+        user = User.objects.create_user(email="patient@test.fr", password="mdp")
+        expert_user = User.objects.create_user(email="doc@test.fr", password="mdp")
+        expert = Expert.objects.create(user=expert_user, specialty="Physique")
+
+        maintenant = timezone.now()
+
+        # 2. Création de 3 créneaux (Aujourd'hui, Demain, Après-demain)
+        slot_aujourdhui = TimeSlot.objects.create(expert=expert, start_time=maintenant, end_time=maintenant + timedelta(hours=1))
+        slot_demain = TimeSlot.objects.create(expert=expert, start_time=maintenant + timedelta(days=1), end_time=maintenant + timedelta(days=1, hours=1))
+        slot_apres_demain = TimeSlot.objects.create(expert=expert, start_time=maintenant + timedelta(days=2), end_time=maintenant + timedelta(days=2, hours=1))
+
+        # 3. Réservation de ces 3 créneaux par le patient
+        Appointment.objects.create(patient=user, time_slot=slot_aujourdhui)
+        Appointment.objects.create(patient=user, time_slot=slot_demain)
+        Appointment.objects.create(patient=user, time_slot=slot_apres_demain)
+
+        # 4. Exécution manuelle de la tâche Celery
+        resultat = envoyer_rappels_rdv()
+
+        # 5. Vérifications strictes
+        assert "1 e-mails" in resultat # Le texte de retour doit mentionner 1 seul e-mail
+        assert mock_send_mail.call_count == 1 # La fonction d'envoi SMTP n'a été appelée qu'une fois

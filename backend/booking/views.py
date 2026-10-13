@@ -40,6 +40,7 @@ class TimeSlotViewSet(viewsets.ModelViewSet):
 # [Entête] ViewSet des Réservations avec envois d'emails transactionnels
 class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Appointment.objects.filter(
