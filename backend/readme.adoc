@@ -14,22 +14,26 @@ Ce dossier contient le serveur back-end principal du portail de réservation Syn
 * 🗄️ **Base de données** : Gestion relationnelle via PostgreSQL pour centraliser les profils utilisateurs, les experts et le planning des créneaux.
 * 🔒 **Sécurité, Authentification & RGPD** : Gestion des sessions sécurisées par JWT via `dj-rest-auth` (avec stockage en cookie HttpOnly), authentification OAuth2 (Google, GitHub, LinkedIn), et gestion sécurisée des profils incluant le droit à l'oubli (suppression définitive du compte).
 * 📧 **Notifications SMTP** : Déclenchement et envoi automatisé d'e-mails transactionnels (Création de compte, Confirmation de réservation, Annulation, Réinitialisation de mot de passe).
+* ⚙️ **Traitements Asynchrones & Tâches Planifiées** : Utilisation du broker **Redis** et des *workers* **Celery** pour déléguer les processus en arrière-plan et exécuter des tâches planifiées (CRON), comme l'envoi d'e-mails de rappel automatiques.
 * 🧠 **Moteur NLP (IA)** : Intégration de l'API Google Gemini 2.5 Flash pour analyser les requêtes en langage naturel et structurer les critères de filtrage.
-* 🛡️ **Logique Métier & Isolation** : Algorithmes garantissant qu'un créneau est verrouillé dès sa réservation, libéré à l'annulation, et qu'un chercheur n'accède qu'à ses propres données.
+* 🛡️ **Logique Métier & Tableaux de bord** : Algorithmes garantissant qu'un créneau est verrouillé dès sa réservation, et isolation des données assurant qu'un patient ou un expert n'accède qu'à ses propres informations (via des tableaux de bord et vues dédiés).
 
 == 🏗️ Architecture et Fichiers Clés
 Voici le détail des fichiers que nous avons créés et configurés pour construire cette architecture orientée API REST :
 
-* `core/settings.py` : Cœur de la configuration. Contient la connexion à PostgreSQL, les variables SMTP, l'intégration des middlewares CORS, et la configuration sur-mesure de `dj-rest-auth` (ex: `USER_DETAILS_SERIALIZER`) pour forcer l'identification par e-mail.
+* `core/settings.py` : Cœur de la configuration. Contient la connexion à PostgreSQL, les variables SMTP, l'intégration des middlewares CORS, la configuration `dj-rest-auth`, ainsi que les variables de connexion au broker **Celery / Redis**.
+* `core/celery.py` : Configuration de l'application Celery et de son *Scheduler* (Celery Beat) pour la planification des tâches quotidiennes.
+* `core/__init__.py` : Modifié pour garantir le chargement automatique de l'application Celery au lancement de Django.
 * `core/urls.py` : Point d'entrée du routage Django. Expose les endpoints de l'API métier (`/api/`) et intègre les routes d'authentification classiques et OAuth.
 * `core/auth_views.py` : Connecteurs configurant les adaptateurs OAuth (Google, GitHub, LinkedIn) avec leurs URLs de redirection dynamiques pointant vers le front-end React.
 * `booking/models.py` : Définition de la structure de la base de données. Contient un modèle `User` personnalisé (sans champ username), et les modèles `Expert`, `TimeSlot` et `Appointment`.
-* `booking/serializers.py` : Couche de transformation JSON. Outre les sérialiseurs classiques des modèles, il intègre `CustomRegisterSerializer`, `CustomPasswordResetSerializer` (pour forcer l'envoi d'un e-mail direct vers le Front) et un `UserSerializer` strict empêchant l'usurpation d'e-mail lors de la mise à jour du profil.
-* `booking/views.py` : Contrôleurs de l'API (ViewSets). Appliquent les filtres automatiques pour masquer les créneaux passés ou réservés, gèrent l'isolation multi-tenant (`get_queryset`), et déclenchent l'envoi direct d'e-mails transactionnels. Inclut les APIViews personnalisées `BookingAssistantView` (IA) et `DeleteAccountView` (RGPD).
-* `booking/signals.py` : Écouteurs d'événements asynchrones. Ils détectent la création d'un compte ou la modification d'un mot de passe pour expédier instantanément les e-mails de bienvenue et d'alerte.
-* `booking/ai_service.py` : Interface avec le modèle Google Gemini 2.5 Flash. Analyse les requêtes en langage naturel et renvoie un dictionnaire structuré exploitable par les contrôleurs.
-* `booking/tests.py` : Suite exhaustive de tests automatisés avec Pytest validant la sécurité de l'API : respect de l'isolation des données, verrouillage des créneaux, vérification de la sécurité de mise à jour du profil (blocage d'e-mail) et conformité RGPD.
-* `pytest.ini` : Fichier de configuration minimal permettant à Pytest de s'amorcer avec les paramètres environnementaux de Django.
+* `booking/serializers.py` : Couche de transformation JSON. Intègre un `UserSerializer` strict et inclut dynamiquement les informations des patients pour les créneaux réservés des experts.
+* `booking/views.py` : Contrôleurs de l'API (ViewSets). Gèrent l'isolation multi-tenant, déclenchent l'envoi direct d'e-mails transactionnels croisés (Expert <-> Patient) et incluent le `ExpertDashboardViewSet` qui restreint rigoureusement l'accès au planning professionnel.
+* `booking/tasks.py` : Scripts exécutés en arrière-plan par les *workers* Celery (ex: `envoyer_rappels_rdv` pour alerter les patients à J-1 de leur rendez-vous).
+* `booking/signals.py` : Écouteurs d'événements asynchrones natifs à Django (création de compte, mot de passe).
+* `booking/ai_service.py` : Interface avec le modèle Google Gemini 2.5 Flash.
+* `booking/tests.py` : Suite exhaustive de tests automatisés avec Pytest validant la sécurité de l'API : respect de l'isolation des données, conformité RGPD, blocage de sécurité sur l'espace expert (`TestExpertDashboardSecurity`) et validation du déclenchement temporel des tâches Celery avec mock SMTP (`TestCeleryRappels`).
+* `pytest.ini` : Fichier de configuration minimal permettant à Pytest de s'amorcer.
 
 == 🚀 Lancement et Arrêt du serveur
 
@@ -41,7 +45,7 @@ Placez-vous à la racine du projet (au niveau du fichier `docker-compose.yml`) e
 ----
 docker compose up --build
 ----
-Le backend Django s'initialisera, appliquera ses migrations de base de données, et sera accessible sur **http://localhost:8000/**.
+Cette commande lancera simultanément la base de données, le serveur Django (sur **http://localhost:8000/**), ainsi que les conteneurs `redis`, `celery_worker` et `celery_beat` nécessaires aux tâches en arrière-plan.
 
 === Exécution des tests automatisés (Pytest)
 Pour valider l'intégrité de la logique métier et de la sécurité, exécutez la suite de tests à l'intérieur du conteneur backend actif :
@@ -50,8 +54,15 @@ Pour valider l'intégrité de la logique métier et de la sécurité, exécutez 
 docker compose exec backend pytest -v
 ----
 
+=== Déclenchement manuel des tâches (Celery)
+Pour tester immédiatement l'envoi des rappels de rendez-vous asynchrones sans attendre l'heure planifiée par le CRON, exécutez la tâche directement dans le *shell* du conteneur :
+[source,bash]
+----
+docker compose exec backend python manage.py shell -c "from booking.tasks import envoyer_rappels_rdv; print(envoyer_rappels_rdv())"
+----
+
 === Arrêt du serveur
-Pour stopper proprement le serveur backend et libérer les ports de la machine hôte, utilisez la commande suivante depuis la racine du projet :
+Pour stopper proprement le serveur backend, les workers Celery et libérer les ports de la machine hôte, utilisez la commande suivante depuis la racine du projet :
 [source,bash]
 ----
 docker compose down
