@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .ai_service import analyser_requete_naturelle
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 
 User = get_user_model()
 
@@ -36,27 +37,26 @@ class TimeSlotViewSet(viewsets.ModelViewSet):
 
 # [Entête] ViewSet pour les Réservations
 # [Entête] ViewSet des Réservations avec envois d'emails transactionnels
+# [Entête] ViewSet des Réservations avec envois d'emails transactionnels
 class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
 
     def get_queryset(self):
-        # L'utilisateur ne voit que ses propres réservations futures
         return Appointment.objects.filter(
             patient=self.request.user,
             time_slot__start_time__gte=timezone.now()
         ).order_by('time_slot__start_time')
 
-    # === FICHIER : backend/booking/views.py (Extrait à modifier) ===
     def perform_create(self, serializer):
-        # 1. Sauvegarde et verrouillage
         appointment = serializer.save(patient=self.request.user)
         appointment.time_slot.is_booked = True
         appointment.time_slot.save()
 
-        # 2. Envoi de l'email de CONFIRMATION
         start_time_str = appointment.time_slot.start_time.strftime("%d/%m/%Y à %H:%M")
-        expert_name = appointment.time_slot.expert.user.first_name if appointment.time_slot.expert.user.first_name else "votre expert"
+        expert = appointment.time_slot.expert.user
+        expert_name = expert.first_name if expert.first_name else "votre expert"
         
+        # 1. Email au Patient
         try:
             send_mail(
                 subject="Confirmation de votre réservation - Synchrotron SOLEIL",
@@ -66,35 +66,52 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"ERREUR CRITIQUE SMTP (Confirmation) : {e}")
-        
-    def perform_update(self, serializer):
-        appointment = serializer.save()
-        self._envoyer_email_rdv("modifiée", appointment)
+            print(f"ERREUR SMTP (Patient Confirmation) : {e}")
+            
+        # 2. Email à l'Expert
+        try:
+            send_mail(
+                subject="Nouvelle réservation sur votre planning - Synchrotron SOLEIL",
+                message=f"Bonjour,\n\nLe patient {appointment.patient.email} a réservé un créneau avec vous le {start_time_str}.\n\nL'équipe Synchrotron.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[expert.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"ERREUR SMTP (Expert Confirmation) : {e}")
 
     def perform_destroy(self, instance):
         time_slot = instance.time_slot
-        
-        # 1. On libère le créneau pour qu'il réapparaisse
         time_slot.is_booked = False
         time_slot.save()
 
-        # 2. Préparation et envoi de l'email
         start_time_str = time_slot.start_time.strftime("%d/%m/%Y à %H:%M")
-        expert_name = time_slot.expert.user.first_name if time_slot.expert.user.first_name else "votre expert"
+        expert = time_slot.expert.user
         
+        # 1. Email d'annulation au Patient
         try:
             send_mail(
                 subject="Annulation de votre réservation - Synchrotron SOLEIL",
-                message=f"Bonjour,\n\nNous confirmons l'annulation de votre réservation du {start_time_str} avec {expert_name}.\nLe créneau a été libéré.\n\nL'équipe Synchrotron.",
-                from_email=settings.DEFAULT_FROM_EMAIL, # Ou ton adresse email configurée dans les settings
+                message=f"Bonjour,\n\nNous confirmons l'annulation de votre réservation du {start_time_str}.\n\nL'équipe Synchrotron.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[instance.patient.email],
-                fail_silently=False, # Pour activer les logs en cas d'erreur
+                fail_silently=True,
             )
-        except Exception as e:
-            print(f"Erreur SMTP : {e}")
+        except Exception:
+            pass
 
-        # 3. On supprime enfin la réservation en base de données
+        # 2. Email d'annulation à l'Expert
+        try:
+            send_mail(
+                subject="Un patient a annulé un rendez-vous - Synchrotron SOLEIL",
+                message=f"Bonjour,\n\nLe patient {instance.patient.email} a annulé sa réservation du {start_time_str}. Votre créneau a été libéré.\n\nL'équipe Synchrotron.",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[expert.email],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+
         instance.delete()
         
     
@@ -136,3 +153,40 @@ class DeleteAccountView(APIView):
         # grâce au comportement par défaut de Django (on_delete=models.CASCADE)
         user.delete()
         return Response({"detail": "Compte supprimé avec succès."}, status=status.HTTP_204_NO_CONTENT)
+    
+# [Entête] ViewSet dédié au tableau de bord des Experts
+# [Entête] ViewSet dédié au tableau de bord des Experts
+class ExpertDashboardViewSet(viewsets.ModelViewSet):
+    serializer_class = TimeSlotSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # NOUVEAU : On rejette brutalement si ce n'est pas un expert (Code 403)
+        if not hasattr(self.request.user, 'expert_profile'):
+            raise PermissionDenied("Accès refusé : espace réservé aux experts.")
+            
+        return TimeSlot.objects.filter(expert=self.request.user.expert_profile).order_by('-start_time')
+
+    def perform_create(self, serializer):
+        if hasattr(self.request.user, 'expert_profile'):
+            serializer.save(expert=self.request.user.expert_profile)
+        else:
+            raise PermissionDenied("Accès refusé.")
+
+    def perform_destroy(self, instance):
+        # Si le créneau était réservé et que l'expert le supprime, on prévient le patient !
+        if instance.is_booked and hasattr(instance, 'appointment'):
+            start_time_str = instance.start_time.strftime("%d/%m/%Y à %H:%M")
+            try:
+                send_mail(
+                    subject="Créneau annulé par l'expert - Synchrotron SOLEIL",
+                    message=f"Bonjour,\n\nL'expert a dû exceptionnellement annuler votre réservation du {start_time_str}. Veuillez nous excuser pour ce désagrément.\n\nL'équipe Synchrotron.",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[instance.appointment.patient.email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                print(f"Erreur SMTP (Annulation Expert) : {e}")
+                
+        # La suppression du TimeSlot entraînera automatiquement la suppression de l'Appointment grâce au on_delete=CASCADE
+        instance.delete()

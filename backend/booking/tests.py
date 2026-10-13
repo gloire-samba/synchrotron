@@ -126,3 +126,46 @@ class TestUserProfile:
         
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert User.objects.filter(email="supprimer@soleil.fr").count() == 0
+        
+@pytest.mark.django_db
+class TestExpertDashboardSecurity:
+    def setup_method(self):
+        self.client = APIClient()
+        
+        # Création de deux experts distincts
+        self.user_expert_1 = User.objects.create_user(email="expert1@test.fr", password="mdp")
+        self.expert_1 = Expert.objects.create(user=self.user_expert_1, specialty="Physique")
+        
+        self.user_expert_2 = User.objects.create_user(email="expert2@test.fr", password="mdp")
+        self.expert_2 = Expert.objects.create(user=self.user_expert_2, specialty="Chimie")
+        
+        # Création d'un utilisateur normal (sans profil expert)
+        self.user_normal = User.objects.create_user(email="normal@test.fr", password="mdp")
+        
+        # On assigne un créneau uniquement au premier expert
+        TimeSlot.objects.create(
+            expert=self.expert_1,
+            start_time=timezone.now() + timedelta(days=1),
+            end_time=timezone.now() + timedelta(days=1, hours=2),
+            is_booked=False
+        )
+
+    def test_expert_voit_uniquement_ses_creneaux(self):
+        """Un expert ne doit pas voir le planning des autres."""
+        # Expert 1 se connecte : il doit voir 1 créneau
+        self.client.force_authenticate(user=self.user_expert_1)
+        response_1 = self.client.get('/api/expert-dashboard/')
+        assert response_1.status_code == status.HTTP_200_OK
+        assert len(response_1.json()) == 1
+
+        # Expert 2 se connecte : il doit voir 0 créneau
+        self.client.force_authenticate(user=self.user_expert_2)
+        response_2 = self.client.get('/api/expert-dashboard/')
+        assert response_2.status_code == status.HTTP_200_OK
+        assert len(response_2.json()) == 0
+
+    def test_rejet_utilisateur_normal(self):
+        """Un patient normal qui tente d'accéder au dashboard expert est bloqué (403 Forbidden)."""
+        self.client.force_authenticate(user=self.user_normal)
+        response = self.client.get('/api/expert-dashboard/')
+        assert response.status_code == status.HTTP_403_FORBIDDEN

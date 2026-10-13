@@ -170,3 +170,26 @@ export const deleteAccount = async () => {
   if (!res.ok) throw new Error("Erreur lors de la suppression du compte.");
   return;
 };
+
+export const getExpertSlots = async () => {
+  const res = await fetchAuth(`${API_URL}/expert-dashboard/`);
+  if (!res.ok) throw new Error("Erreur lors de la récupération de vos créneaux.");
+  return res.json();
+};
+
+export const createExpertSlot = async (start_time: string, end_time: string) => {
+  const res = await fetchAuth(`${API_URL}/expert-dashboard/`, {
+    method: 'POST',
+    body: JSON.stringify({ start_time, end_time }),
+  });
+  if (!res.ok) throw new Error("Impossible de créer ce créneau.");
+  return res.json();
+};
+
+export const deleteExpertSlot = async (slotId: number) => {
+  const res = await fetchAuth(`${API_URL}/expert-dashboard/${slotId}/`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error("Erreur lors de la suppression du créneau.");
+  return res;
+};

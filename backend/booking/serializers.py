@@ -16,11 +16,17 @@ import os
 User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
+    
+    is_expert = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ['id', 'first_name', 'last_name', 'email']
+        fields = ['id', 'first_name', 'last_name', 'email','is_expert']
         # On empêche la modification de l'email et de l'ID via le formulaire de profil
-        read_only_fields = ['id', 'email']
+        read_only_fields = ['id', 'email','is_expert']
+        
+    # Cette fonction vérifie si l'utilisateur possède un profil expert lié
+    def get_is_expert(self, obj):
+        return hasattr(obj, 'expert_profile')
 class ExpertSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     class Meta:
@@ -29,14 +35,29 @@ class ExpertSerializer(serializers.ModelSerializer):
 
 class TimeSlotSerializer(serializers.ModelSerializer):
     expert = ExpertSerializer(read_only=True)
+    # NOUVEAU : Champ calculé pour récupérer les infos du patient si réservé
+    patient_info = serializers.SerializerMethodField()
+
     class Meta:
         model = TimeSlot
-        fields = ['id', 'expert', 'start_time', 'end_time', 'is_booked']
+        fields = ['id', 'expert', 'start_time', 'end_time', 'is_booked', 'patient_info']
+
+    def get_patient_info(self, obj):
+        # Si le créneau est réservé, on va chercher les données du patient via l'Appointment
+        if obj.is_booked and hasattr(obj, 'appointment'):
+            patient = obj.appointment.patient
+            return {
+                "name": f"{patient.first_name} {patient.last_name}".strip() or "Utilisateur",
+                "email": patient.email,
+            }
+        return None
 
 class AppointmentSerializer(serializers.ModelSerializer):
+    
+    time_slot_details = TimeSlotSerializer(source='time_slot', read_only=True)
     class Meta:
         model = Appointment
-        fields = '__all__'
+        fields = ['id', 'patient', 'time_slot', 'time_slot_details', 'reason', 'created_at']
         read_only_fields = ['patient']
         
 class CustomRegisterSerializer(RegisterSerializer):

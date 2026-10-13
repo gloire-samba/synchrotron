@@ -1,13 +1,14 @@
 # === FICHIER : backend/booking/urls.py ===
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ExpertViewSet, TimeSlotViewSet, AppointmentViewSet, BookingAssistantView, DeleteAccountView
+from .views import ExpertViewSet, TimeSlotViewSet, AppointmentViewSet, BookingAssistantView, DeleteAccountView, ExpertDashboardViewSet
 
 # [Entête] Configuration du routeur DRF
 router = DefaultRouter()
 router.register(r'experts', ExpertViewSet, basename='expert')
 router.register(r'timeslots', TimeSlotViewSet, basename='timeslot')
 router.register(r'appointments', AppointmentViewSet, basename='appointment')
+router.register(r'expert-dashboard', ExpertDashboardViewSet, basename='expert-dashboard')
 
 urlpatterns = [
     path('', include(router.urls)),
